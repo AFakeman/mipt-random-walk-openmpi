@@ -1,0 +1,5 @@
+#! /bin/bash
+
+NODES=$(($2 * $3))
+
+sbatch -n $NODES ./wrapper ./main $@

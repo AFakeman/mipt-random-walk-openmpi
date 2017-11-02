@@ -1,4 +1,4 @@
-CFLAGS = -Wall -Werror -pthread -g
+CFLAGS = -Wall -Werror -pthread -g -std=c99
 CC = mpicc
 
 main: main.c atomic.o fixed_list.o messenger_thread.o queue.o simulation.o
