@@ -1,6 +1,7 @@
 #include <pthread.h>
-#include <stdatomic.h>
 #include <stddef.h>
+
+#include "atomic.h"
 
 #pragma once
 
@@ -12,7 +13,7 @@ typedef struct Particle {
 } Particle;
 
 typedef struct InitialParams {
-  atomic_int done;
+  atomic_size_t done;
   pthread_mutex_t mtx;
   pthread_cond_t cond;
   int rank;

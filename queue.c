@@ -13,6 +13,7 @@ typedef struct QueueNode QueueNode;
 void QueueInit(Queue* self) {
   self->top_ = NULL;
   self->back_ = NULL;
+  atomic_init(&self->size_);
   atomic_store(&self->size_, 0);
 }
 
@@ -26,6 +27,7 @@ void QueueDestroy(Queue* self) {
     to_delete = cursor;
     cursor = cursor->next;
   }
+  atomic_destroy(&self->size_);
   free(to_delete);
 }
 

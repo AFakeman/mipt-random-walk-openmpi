@@ -45,6 +45,7 @@ MessengerThread* CreateMsgThreadAndFillParams(InitialParams* params,
                                               size_t width) {
   pthread_mutex_init(&params->mtx, NULL);
   pthread_cond_init(&params->cond, NULL);
+  atomic_init(&params->done);
   atomic_store(&params->done, 0);
   pthread_mutex_lock(&params->mtx);
   MessengerThread* thread = MessengerThreadCreate(params, bound, width);
@@ -206,6 +207,7 @@ void SimulationRun(size_t bound,
   }
   pthread_cond_destroy(&mpi_params.cond);
   pthread_mutex_destroy(&mpi_params.mtx);
+  atomic_destroy(&mpi_params.done);
   MessengerThreadDumpField(msg_thread, finished_by_rank,
                            bound * bound * width * height);
   MessengerThreadShutdown(msg_thread);

@@ -1,5 +1,6 @@
-#include <stdatomic.h>
 #include <stddef.h>
+
+#include "atomic.h"
 
 struct QueueNode;
 

@@ -2,9 +2,9 @@
 
 #include <mpi.h>
 #include <pthread.h>
-#include <stdatomic.h>
 #include <stdlib.h>
 
+#include "atomic.h"
 #include "queue.h"
 
 static MPI_Datatype MPI_Particle;
@@ -19,7 +19,7 @@ struct MessengerThread {
   Queue receive_queue_;
   pthread_mutex_t receive_queue_mtx_;
   atomic_size_t finished_count_;
-  atomic_int shutdown_;
+  atomic_size_t shutdown_;
   size_t bound;
   size_t width;
   int rank;
@@ -181,6 +181,8 @@ MessengerThread* MessengerThreadCreate(InitialParams* params,
   pthread_mutex_init(&self->receive_queue_mtx_, NULL);
   QueueInit(&self->send_queue_);
   QueueInit(&self->receive_queue_);
+  atomic_init(&self->finished_count_);
+  atomic_init(&self->shutdown_);
   atomic_store(&self->finished_count_, 0);
   atomic_store(&self->shutdown_, 0);
   self->bound = bound;
@@ -192,6 +194,8 @@ MessengerThread* MessengerThreadCreate(InitialParams* params,
 void MessengerThreadDelete(MessengerThread* self) {
   pthread_mutex_destroy(&self->send_queue_mtx_);
   pthread_mutex_destroy(&self->receive_queue_mtx_);
+  atomic_destroy(&self->finished_count_);
+  atomic_destroy(&self->shutdown_);
   QueueDestroy(&self->receive_queue_);
   QueueDestroy(&self->send_queue_);
   free(self);
