@@ -2,6 +2,7 @@
 
 #include <mpi.h>
 #include <pthread.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "atomic.h"
@@ -79,6 +80,7 @@ void DumpData(MessengerThread* self, OutgoingMessage* msg) {
   MPI_Offset offset = y_pos * self->width * msg->value.dump.length +
                       x_pos * self->bound * self->size;
   offset *= inset;
+  printf("%lu\n", msg->value.dump.length);
   MPI_File_set_view(file, offset, MPI_UNSIGNED_LONG_LONG, MPI_Particle_Vector,
                     "native", MPI_INFO_NULL);
   MPI_File_write_all(file, msg->value.dump.counts, msg->value.dump.length,
@@ -124,7 +126,7 @@ void InitMPIStruct(size_t size, size_t bound, size_t width) {
     MPI_Type_commit(&MPI_Particle);
   }
   {
-    MPI_Type_vector(bound, bound * size, (width - 1) * bound * size * 2,
+    MPI_Type_vector(bound, bound * size, width * bound * size,
                     MPI_UNSIGNED_LONG_LONG, &MPI_Particle_Vector);
     MPI_Type_commit(&MPI_Particle_Vector);
   }
