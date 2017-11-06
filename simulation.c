@@ -1,6 +1,7 @@
 #include "simulation.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "fixed_list.h"
@@ -63,9 +64,18 @@ size_t* arr3dget(size_t* arr,
                  size_t size2,
                  size_t size3) {
   size_t offset = idx1 * size2 * size3 + idx2 * size3 + idx3;
-  assert(idx1 < size1);
-  assert(idx2 < size2);
-  assert(idx3 < size3);
+  if (idx1 >= size1) {
+    printf("idx1: %lu, size1: %lu\n", idx1, size1);
+    assert(idx1 < size1);
+  }
+  if (idx2 >= size2) {
+    printf("idx2: %lu, size2: %lu\n", idx2, size2);
+    assert(idx2 < size2);
+  }
+  if (idx3 >= size3) {
+    printf("idx3: %lu, size3: %lu\n", idx3, size3);
+    assert(idx3 < size3);
+  }
   return arr + offset;
 }
 
@@ -92,8 +102,8 @@ void SimulationRun(size_t bound,
   int grace_bound;
   const int x_pos = mpi_params.rank % width;
   const int y_pos = mpi_params.rank / width;
-  const int min_x = (mpi_params.rank % width) * bound;
-  const int min_y = (mpi_params.rank / width) * bound;
+  const int min_x = x_pos * bound;
+  const int min_y = y_pos * bound;
   const int max_x = min_x + bound - 1;
   const int max_y = min_y + bound - 1;
   if (bound / kGraceScaleFactor < kMaxGraceBound) {
@@ -121,43 +131,43 @@ void SimulationRun(size_t bound,
       int target_rank = mpi_params.rank;
       int target_x_pos = x_pos;
       int target_y_pos = y_pos;
-      if (particle->x < 0)
-        particle->x += bound * width;
-      else if (particle->x >= bound * width)
-        particle->x -= bound * width;
-      if (particle->y < 0)
-        particle->y += bound * height;
-      else if (particle->y >= bound * height)
-        particle->y -= bound * height;
 
-      if (particle->x > max_x + grace_bound) {
-        target_x_pos = (x_pos + 1 == width) ? 0 : x_pos + 1;
-        target_rank = width * y_pos + target_x_pos;
-      } else if (particle->x < min_x - grace_bound) {
-        target_x_pos = (x_pos == 0) ? width - 1 : x_pos - 1;
-        target_rank = width * y_pos + target_x_pos;
-      } else if (particle->y > max_y + grace_bound) {
-        target_y_pos = (y_pos + 1 == height) ? 0 : y_pos + 1;
-        target_rank = width * target_y_pos + x_pos;
-      } else if (particle->y < min_y - grace_bound) {
-        target_y_pos = (y_pos == 0) ? height - 1 : y_pos - 1;
-        target_rank = width * target_y_pos + x_pos;
-      } else if (particle->iterations == max_iterations) {
-        if (particle->x > max_x) {
-          target_x_pos = (x_pos + 1 == width) ? 0 : x_pos + 1;
-          target_rank = width * y_pos + target_x_pos;
-        } else if (particle->x < min_x) {
-          target_x_pos = (x_pos == 0) ? width - 1 : x_pos - 1;
-          target_rank = width * y_pos + target_x_pos;
-        } else if (particle->y > max_y) {
-          target_y_pos = (y_pos + 1 == height) ? 0 : y_pos + 1;
-          target_rank = width * target_y_pos + x_pos;
-        } else if (particle->y < min_y) {
-          target_y_pos = (y_pos == 0) ? height - 1 : y_pos - 1;
-          target_rank = width * target_y_pos + x_pos;
-        }
+      if (particle->x > max_x + grace_bound || 
+          particle->x < min_x - grace_bound ||
+          particle->y > max_y + grace_bound ||
+          particle->y < min_y - grace_bound ||
+          particle->iterations == max_iterations) {
+        if (particle->x < 0)
+          particle->x += bound * width;
+        else if (particle->x >= bound * width)
+          particle->x -= bound * width;
+        if (particle->y < 0)
+          particle->y += bound * height;
+        else if (particle->y >= bound * height)
+          particle->y -= bound * height;
+        target_x_pos = particle->x / bound;
+        target_y_pos = particle->y / bound;
       }
+
+      target_rank = width * target_y_pos + target_x_pos;
+
       if (target_rank != mpi_params.rank) {
+        if (!(particle->x >= target_x_pos * bound)) {
+          printf("%d: particle->x: %d, target_x_pos: %d, particle->iterations: %lu\n", mpi_params.rank, particle->x, target_x_pos, particle->iterations);
+          assert(particle->x >= target_x_pos * bound);
+        }
+        if (!(particle->x <= (target_x_pos + 1) * bound)) {
+          printf("%d: particle->x: %d, target_x_pos: %d, particle->iterations: %lu\n", mpi_params.rank, particle->x, target_x_pos, particle->iterations);
+          assert(particle->x <= (target_x_pos + 1) * bound);
+        }
+        if (!(particle->y >= target_y_pos * bound)) {
+          printf("%d: particle->y: %d, target_y_pos: %d, particle->iterations: %lu\n", mpi_params.rank, particle->y, target_y_pos, particle->iterations);
+          assert(particle->y >= target_y_pos * bound);
+        }
+        if (!(particle->y <= (target_y_pos + 1) * bound)) {
+          printf("%d: particle->y: %d, target_y_pos: %d, particle->iterations: %lu\n", mpi_params.rank, particle->y, target_y_pos, particle->iterations);
+          assert(particle->y <= (target_y_pos + 1) * bound);
+        }
         FixedListDeleteElement(list, prev);
         MessengerThreadSendParticle(msg_thread, particle, target_rank);
         if (prev) {
@@ -166,6 +176,23 @@ void SimulationRun(size_t bound,
           cursor = FixedListBegin(list);
         }
       } else if (particle->iterations == max_iterations) {
+        if (!(particle->y - min_y >= 0)) {
+          printf("particle->y - min_y: %d\n", particle->y - min_y);
+        }
+        if (!(particle->x - min_x >= 0)) {
+          printf("particle->x - min_x > 0: %d\n", particle->x - min_x);
+        }
+        if (!(particle->x - min_x < bound)) {
+          printf("particle->x - min_x < bound: %d\n", particle->x - min_x);
+        }
+        if (!(particle->y - min_y < bound)) {
+          printf("particle->y - min_y < bound: %d\n", particle->y - min_y);
+        }
+        assert(particle->y - min_y >= 0);
+        assert(particle->x - min_x >= 0);
+        assert(particle->x - min_x < bound);
+        assert(particle->y - min_y < bound);
+        //printf("A particle died here\n");
         *arr3dget(finished_by_rank, particle->x - min_x, particle->y - min_y,
                   particle->parent, bound, bound, width * height) += 1;
         free(particle);
@@ -195,6 +222,23 @@ void SimulationRun(size_t bound,
       iterations = 0;
       while ((particle = MessengerThreadParticlePop(msg_thread))) {
         if (particle->iterations == max_iterations) {
+          //printf("Received a dead particle\n");
+          if (!(particle->y - min_y >= 0)) {
+            printf("%d: particle->x: %d, particle->y: %d, min_y: %d\n", mpi_params.rank, particle->x, particle->y, min_y);
+            assert(particle->y - min_y >= 0);
+          }
+          if (!(particle->x - min_x >= 0)) {
+            printf("%d: particle->x: %d, particle->y: %d, min_x: %d\n", mpi_params.rank, particle->x, particle->y, min_x);
+            assert(particle->x - min_x >= 0);
+          }
+          if (!(particle->x - min_x < bound)) {
+            printf("%d: particle->x: %d, particle->y: %d, min_x: %d\n", mpi_params.rank, particle->x, particle->y, min_x);
+            assert(particle->x - min_x < bound);
+          }
+          if (!(particle->y - min_y < bound)) {
+            printf("%d: particle->x: %d, particle->y: %d, min_y: %d\n", mpi_params.rank, particle->x, particle->y, min_y);
+            assert(particle->y - min_y < bound);
+          }
           *arr3dget(finished_by_rank, particle->x - min_x, particle->y - min_y,
                     particle->parent, bound, bound, width * height) += 1;
           ++delta;
